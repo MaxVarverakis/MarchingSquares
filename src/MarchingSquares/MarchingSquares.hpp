@@ -54,8 +54,9 @@ public:
     MarchingSquares(const float isolevel, const bool interp, const Grid& grid);
 
     void march(const Grid& grid);
-
     std::vector<Point>& points() { return m_points; }
     std::vector<float> positions();
+    float getIsolevel() { return m_isolevel; }
+    void setIsolevel(const float isolevel) { m_isolevel = isolevel; }
     void clear();
 };

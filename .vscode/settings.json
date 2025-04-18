@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "*.tikz": "latex",
+        "*.g4bl": "shellscript",
         "string": "cpp",
         "vector": "cpp",
         "__bit_reference": "cpp",
@@ -50,6 +51,13 @@
         "fstream": "cpp",
         "__split_buffer": "cpp",
         "execution": "cpp",
-        "__hash_table": "cpp"
+        "__hash_table": "cpp",
+        "atomic": "cpp",
+        "compare": "cpp",
+        "concepts": "cpp",
+        "exception": "cpp",
+        "memory_resource": "cpp",
+        "type_traits": "cpp",
+        "utility": "cpp"
     }
 }

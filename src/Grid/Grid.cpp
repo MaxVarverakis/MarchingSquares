@@ -13,7 +13,7 @@ Grid::Grid(const float width, const float height, const unsigned int resolution,
     }
 }
 
-Grid::Grid(const float width, const float height, const unsigned int resolution, float (*f)(const glm::vec2&, const float t))
+Grid::Grid(const float width, const float height, const unsigned int resolution, float (*f)(const glm::vec2&, const float))
     : m_resolution { resolution }
 {
     m_points.reserve(resolution * resolution);
@@ -26,14 +26,28 @@ Grid::Grid(const float width, const float height, const unsigned int resolution,
     }
 }
 
-Grid::Grid(const float width, const float height, const unsigned int resolution, std::vector<Particle>& particles)
+Grid::Grid(const float width, const float height, const unsigned int resolution, const bool walls, std::vector<Particle>& particles)
     : m_resolution { resolution }
     , m_values(resolution * resolution, 0.0f)
+    , m_walls { walls }
 {
     m_points.reserve(resolution * resolution);
 
     createPoints(width, height);
     assignValues(particles);
+}
+
+Grid::Grid(const float width, const float height, const unsigned int resolution, const PerlinNoise& perlin)
+: m_resolution { resolution }
+{
+    m_points.reserve(resolution * resolution);
+    m_values.reserve(resolution * resolution);
+
+    createPoints(width, height);
+    for (const Point& point : m_points)
+    {
+        m_values.emplace_back(perlin.noise(point.position(), 0.0f));
+    }
 }
 
 void Grid::assignValues(float (*f)(const glm::vec2&))
@@ -56,14 +70,25 @@ void Grid::assignValues(std::vector<Particle>& particles)
 {
     for (unsigned int i = 0; i < m_points.size(); ++i)
     {
-        const glm::vec2& location = m_points[i].position();
-        float& value = m_values[i];
-        value = 0.0f;
-        for (Particle& particle : particles)
+        if ( m_walls ? ( (i > m_resolution) && (i % m_resolution > 0) && (i % m_resolution < m_resolution - 1) && (i < m_resolution * (m_resolution - 1)) ) : true)
         {
-            // possible parallelization: use different thread for each particle
-            value += particle.radius() / glm::length(location - particle.position());
+            const glm::vec2& location = m_points[i].position();
+            float& value = m_values[i];
+            value = 0.0f;
+            for (Particle& particle : particles)
+            {
+                // possible parallelization: use different thread for each particle
+                value += particle.radius() / glm::length(location - particle.position());
+            }
         }
+    }
+}
+
+void Grid::assignValues(const PerlinNoise& perlin, const float t)
+{
+    for (unsigned int i = 0; i < m_values.size(); ++i)
+    {
+        m_values[i] = perlin.noise(m_points[i].position(), t);
     }
 }
 

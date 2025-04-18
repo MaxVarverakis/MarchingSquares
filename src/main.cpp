@@ -1,6 +1,7 @@
 #include <iostream>
 #include <math.h>
 #include <random>
+#include <algorithm>
 
 #include "VertexBuffer/VertexBuffer.hpp"
 #include "IndexBuffer/IndexBuffer.hpp"
@@ -12,23 +13,29 @@
 #include "Point/Point.hpp"
 #include "Grid/Grid.hpp"
 #include "MarchingSquares/MarchingSquares.hpp"
+#include "PerlinNoise/PerlinNoise.hpp"
 
 SDL_Window* window;
 SDL_GLContext gl_context;
 
 bool is_running;
-
-float anglex { 0.0f };
-float anglez { 0.0f };
+bool paused { true };
 
 const float width { 768.0f };
 const float height { 768.0f };
 const float isolevel { 0.5f };
 const bool interp { true };
-const unsigned int res { 150 };
+const unsigned int res { 250 };
 
-const float dt { 0.025f };
-float sim_time { 0.0f };
+// const float FRAME_RATE { 120.0f };
+float DELTA_TIME; // { 1.0f / FRAME_RATE};
+Uint32 CURRENT_TIME { 0 };
+Uint32 LAST_TIME { 0 };
+// Uint64 START_TICK_COUNT, END_TICK_COUNT;
+// float ELAPSED_MS;
+
+float GLOBAL_TIME { 0.0f };
+float DT { 0.025f };
 
 float f(const glm::vec2& v, const float t)
 {
@@ -47,27 +54,43 @@ void set_sdl_gl_attributes()
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 }
 
-void rotateWithArrowKeys(SDL_Event& event)
+void arrowKeyIsolevel(SDL_Event& event, MarchingSquares& msq)
 {
-    constexpr float dtheta { 5.0f };
+    float di { 0.005f };
 
+    if (event.type == SDL_KEYDOWN)
+    {
+        if (event.key.keysym.scancode == SDL_SCANCODE_DOWN)
+        {
+            msq.setIsolevel(std::clamp(msq.getIsolevel() - di, 0.0f, 1.0f));
+            std::cout << msq.getIsolevel() << '\n';
+        }
+        else if (event.key.keysym.scancode == SDL_SCANCODE_UP)
+        {
+            msq.setIsolevel(std::clamp(msq.getIsolevel() + di, 0.0f, 1.0f));
+            std::cout << msq.getIsolevel() << '\n';
+        }
+    }
+}
+
+void evolveTime(SDL_Event& event)
+{
     if (event.type == SDL_KEYDOWN)
     {
         if (event.key.keysym.scancode == SDL_SCANCODE_LEFT)
         {
-            anglez -= dtheta;
+            GLOBAL_TIME < DT ? GLOBAL_TIME = 0.0f : GLOBAL_TIME -= DT;
+            std::cout << "Global time: " << GLOBAL_TIME << '\n';
         }
         else if (event.key.keysym.scancode == SDL_SCANCODE_RIGHT)
         {
-            anglez += dtheta;
+            GLOBAL_TIME += DT;
+            std::cout << "Global time: " << GLOBAL_TIME << '\n';
         }
-        else if (event.key.keysym.scancode == SDL_SCANCODE_DOWN)
+        else if (event.key.keysym.scancode == SDL_SCANCODE_SPACE)
         {
-            anglex -= dtheta;
-        }
-        else if (event.key.keysym.scancode == SDL_SCANCODE_UP)
-        {
-            anglex += dtheta;
+            paused = paused ? false : true;
+            std::cout << "Paused: " << paused << '\n';
         }
     }
 }
@@ -79,7 +102,7 @@ int main()
         std::cout<<"SDL2 initialized successfully."<<std::endl;
         set_sdl_gl_attributes();
         
-        window = SDL_CreateWindow("Marching Squares", 0.0f, 0.0f, static_cast<int>(width), static_cast<int>(height), SDL_WINDOW_OPENGL);
+        window = SDL_CreateWindow("Marching Squares | Metaballs", 0.0f, 0.0f, static_cast<int>(width), static_cast<int>(height), SDL_WINDOW_OPENGL);
         gl_context = SDL_GL_CreateContext(window);
         SDL_GL_SetSwapInterval(1);
 
@@ -100,16 +123,18 @@ int main()
         GLCall(glHint( GL_LINE_SMOOTH_HINT, GL_NICEST ));
 
         // Grid grid(width, height, res, f);
-        std::vector<Particle> particles;
-        // initialize particles
-        particles.emplace_back(10.0f, glm::vec2(width/2, height/2), glm::vec2(0.0f, height/20));
-        particles.emplace_back(20.0f, glm::vec2(width/4, height * 3.0f/4.0f), glm::vec2(width/15, height/10));
-        particles.emplace_back(25.0f, glm::vec2(width * 7.0f/8.0f, height/8), glm::vec2(-width/50, height/10));
-        particles.emplace_back(7.0f, glm::vec2(width/8, height/4), glm::vec2(-width/20, height/10));
-        particles.emplace_back(15.0f, glm::vec2(width * 3.0f/4.0f, height/2), glm::vec2(width/30, -height/10));
         
+        // std::vector<Particle> particles;
+        // // initialize particles
+        // particles.emplace_back(10.0f, glm::vec2(width/2, height/2), glm::vec2(0.0f, height/20));
+        // particles.emplace_back(20.0f, glm::vec2(width/4, height * 3.0f/4.0f), glm::vec2(width/15, height/10));
+        // particles.emplace_back(25.0f, glm::vec2(width * 7.0f/8.0f, height/8), glm::vec2(-width/50, height/10));
+        // particles.emplace_back(7.0f, glm::vec2(width/8, height/4), glm::vec2(-width/20, height/10));
+        // particles.emplace_back(15.0f, glm::vec2(width * 3.0f/4.0f, height/2), glm::vec2(width/30, -height/10));
         
-        Grid grid(width, height, res, particles);
+        // Grid grid(width, height, res, true, particles);
+        PerlinNoise p(width, height, 10, false);
+        Grid grid(width, height, res, p);
         std::vector<Circle> point_circles;
         point_circles.reserve(grid.size());
 
@@ -229,7 +254,16 @@ int main()
 
         while(is_running)
         {
-            // Uint64 start = SDL_GetPerformanceCounter();
+            // START_TICK_COUNT = SDL_GetPerformanceCounter();
+            
+            // CURRENT_TIME = SDL_GetTicks();
+            // DELTA_TIME = fminf(static_cast<float>(CURRENT_TIME - LAST_TIME) / 1000.0f, 0.025f);
+            // evolve particles
+            // for (Particle& particle : particles)
+            // {
+            //     particle.evolve(width, height, DELTA_TIME);
+            // }
+            // LAST_TIME = CURRENT_TIME;
 
             while(SDL_PollEvent(&event))
             {
@@ -237,26 +271,38 @@ int main()
                 {
                     is_running = false;
                 }
-                
-                // rotateWithArrowKeys(event);
+
+                arrowKeyIsolevel(event, MSq);
+                evolveTime(event);
             }
 
-            // grid.assignValues(f, sim_time);
-            grid.assignValues(particles);
+            if (not paused) { GLOBAL_TIME += DT / 2; }
+            
+            // update z layer if reached the ceiling
+            if (GLOBAL_TIME >= 0.99999f)
+            {
+                GLOBAL_TIME = 0.0f;
+                p.nextZGradients();
+            }
+
+            // update grid values
+            grid.assignValues(p, GLOBAL_TIME);
+            // grid.assignValues(particles);
             MSq.march(grid);
 
             // update circle buffer
             circles.udpateColors(values);
             VBO.updateBuffer(circles.m_vertices.data());
             
-            // update line buffer
+            // update line buffer (rebuffer because the size of the buffer is non-constant)
             std::vector<float> positions = MSq.positions();
             line_VBO.rebuffer(positions.data(), static_cast<unsigned int>(positions.size() * sizeof(float)), GL_DYNAMIC_DRAW);
 
             // Render
             renderer.clear();
 
-            // renderer.drawCircles(VAO, IBO, shader);
+            // to show grid point values in color
+            renderer.drawCircles(VAO, IBO, shader);
             // renderer.drawCircles(line_circ_VAO, line_circ_IBO, shader);
             
             renderer.drawLines(line_VAO, line_VBO, line_shader);
@@ -264,16 +310,9 @@ int main()
 
             SDL_GL_SwapWindow(window);
 
-            // update grid values
-            sim_time += dt;
-            
-            // evolve particles
-            for (Particle& particle : particles)
-            {
-                particle.evolve(width, height, dt);
-            }
-
-            // Uint64 end = SDL_GetPerformanceCounter();
+            // END_TICK_COUNT = SDL_GetPerformanceCounter();
+            // ELAPSED_MS = static_cast<float>((END_TICK_COUNT - START_TICK_COUNT) / SDL_GetPerformanceFrequency()) * 1000.0f;
+            // SDL_Delay((Uint32)(DELTA_TIME * 1000.0f - ELAPSED_MS));
 
             // float elapsed = static_cast<float>(end - start) / (float)SDL_GetPerformanceFrequency();
             // std::cout << "Current FPS: " << std::to_string(1.0f / elapsed) << std::endl;
