@@ -20,6 +20,7 @@ SDL_GLContext gl_context;
 
 bool is_running;
 bool paused { true };
+bool showNoise { false };
 
 const float width { 768.0f };
 const float height { 768.0f };
@@ -95,6 +96,30 @@ void evolveTime(SDL_Event& event)
     }
 }
 
+void renderNoise(SDL_Event& event)
+{
+    if (event.type == SDL_KEYDOWN)
+    {
+        if (event.key.keysym.scancode == SDL_SCANCODE_RETURN)
+        {
+            showNoise ? showNoise = false : showNoise = true;
+        }
+    }
+}
+
+void printKey()
+{
+    std::cout << "###################################" << '\n';
+    std::cout << "KEY" << '\n';
+    std::cout << "Return/enter" << '\t' << "Show/hide grid values" << '\n';
+    std::cout << "Spacebar" << '\t' << "Play/pause" << '\n';
+    std::cout << "Right arrow" << '\t' << "Time forward" << '\n';
+    std::cout << "Left arrow" << '\t' << "Time reverse" << '\n';
+    std::cout << "Up arrow" << '\t' << "Increase iso-level" << '\n';
+    std::cout << "Down arrow" << '\t' << "Decrease iso-level" << '\n';
+    std::cout << "###################################" << '\n';
+}
+
 int main()
 {
     if(SDL_Init(SDL_INIT_EVERYTHING)==0)
@@ -102,7 +127,7 @@ int main()
         std::cout<<"SDL2 initialized successfully."<<std::endl;
         set_sdl_gl_attributes();
         
-        window = SDL_CreateWindow("Marching Squares | Metaballs", 0.0f, 0.0f, static_cast<int>(width), static_cast<int>(height), SDL_WINDOW_OPENGL);
+        window = SDL_CreateWindow("Marching Squares", 0.0f, 0.0f, static_cast<int>(width), static_cast<int>(height), SDL_WINDOW_OPENGL);
         gl_context = SDL_GL_CreateContext(window);
         SDL_GL_SetSwapInterval(1);
 
@@ -121,6 +146,8 @@ int main()
 
         GLCall(glEnable( GL_LINE_SMOOTH ));
         GLCall(glHint( GL_LINE_SMOOTH_HINT, GL_NICEST ));
+
+        printKey();
 
         // Grid grid(width, height, res, f);
         
@@ -274,9 +301,10 @@ int main()
 
                 arrowKeyIsolevel(event, MSq);
                 evolveTime(event);
+                renderNoise(event);
             }
 
-            if (not paused) { GLOBAL_TIME += DT / 2; }
+            if (not paused) { GLOBAL_TIME += DT / 5; }
             
             // update z layer if reached the ceiling
             if (GLOBAL_TIME >= 0.99999f)
@@ -302,7 +330,7 @@ int main()
             renderer.clear();
 
             // to show grid point values in color
-            renderer.drawCircles(VAO, IBO, shader);
+            if (showNoise) { renderer.drawCircles(VAO, IBO, shader); }
             // renderer.drawCircles(line_circ_VAO, line_circ_IBO, shader);
             
             renderer.drawLines(line_VAO, line_VBO, line_shader);
