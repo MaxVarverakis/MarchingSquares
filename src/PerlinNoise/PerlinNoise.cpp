@@ -1,8 +1,6 @@
 #include "PerlinNoise.hpp"
 
-#include <random>
 #include <cstdlib>
-#include <ctime>
 #include <iostream>
 
 const std::vector<glm::vec3> PerlinNoise::gradients = {
@@ -11,6 +9,10 @@ const std::vector<glm::vec3> PerlinNoise::gradients = {
     {0.0f,1.0f,1.0f}, {0.0f,-1.0f,1.0f}, {0.0f,1.0f,-1.0f}, {0.0f,-1.0f,-1.0f}
 };
 
+std::mt19937 PerlinNoise::rng(std::random_device{}());
+std::uniform_real_distribution<float> PerlinNoise::angle_dist(0.0f, 2.0f * static_cast<float>(M_PI));
+std::uniform_real_distribution<float> PerlinNoise::z_dist(-1.0f, 1.0f);
+
 PerlinNoise::PerlinNoise(const float width, const float height, const unsigned int resolution, const bool select_gradients)
     : m_resolution { resolution }
     , m_width { width }
@@ -18,6 +20,15 @@ PerlinNoise::PerlinNoise(const float width, const float height, const unsigned i
 {
     m_node_gradients.reserve(resolution * resolution);
     select_gradients ? selectGradients() : randomGradients();
+}
+
+glm::vec3 PerlinNoise::randomVector()
+{
+    float z { PerlinNoise::z_dist(PerlinNoise::rng) };
+    float theta { PerlinNoise::angle_dist(PerlinNoise::rng)};
+    float r { sqrtf(1.0f - z*z) };
+
+    return glm::vec3( r * cos(theta), r * sin(theta), z );
 }
 
 float PerlinNoise::lerp(float a, float b, float t) const
@@ -44,31 +55,18 @@ void PerlinNoise::selectGradients()
 
 void PerlinNoise::randomGradients()
 {
-    // seed/set up rng
-    static std::mt19937 rng(std::random_device{}());
-    static std::uniform_real_distribution<float> dist(0.0f, 2.0f * static_cast<float>(M_PI));
-    static std::uniform_real_distribution<float> distZ(-1.0f, 1.0f);
-
     for (unsigned int i = 0; i < 2 * m_resolution * m_resolution; ++i)
     {
-        float theta = dist(rng);
-        m_node_gradients.emplace_back(glm::vec3(cos(theta), sin(theta), distZ(rng)));
+        m_node_gradients.emplace_back(randomVector());
     }
 }
 
 void PerlinNoise::nextZGradients()
 {
-    // seed/set up rng
-    static std::mt19937 rng(std::random_device{}());
-    static std::uniform_real_distribution<float> dist(0.0f, 2.0f * static_cast<float>(M_PI));
-    static std::uniform_real_distribution<float> distZ(-1.0f, 1.0f);
-
     for (unsigned int i = 0; i < m_resolution * m_resolution; ++i)
     {
         m_node_gradients[i] = m_node_gradients[i + m_resolution * m_resolution];
-        
-        float theta = dist(rng);
-        m_node_gradients[i + m_resolution * m_resolution] = glm::vec3(cos(theta), sin(theta), distZ(rng));
+        m_node_gradients[i + m_resolution * m_resolution] = randomVector();
     }
 }
 
