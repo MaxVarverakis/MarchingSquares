@@ -319,7 +319,7 @@ int main()
             MSq.march(grid);
 
             // update circle buffer
-            circles.udpateColors(values);
+            circles.updateColors(values);
             VBO.updateBuffer(circles.m_vertices.data());
             
             // update line buffer (rebuffer because the size of the buffer is non-constant)
